@@ -116,6 +116,10 @@
             <span class="stat-val" id="total_balance">$ 0</span>
         </div>
         <div class="stat-card">
+            <span class="stat-lab">USCITE TOTALI (STIPENDI)</span>
+            <span class="stat-val" id="total_expenses" style="color: var(--danger); text-shadow: 0 0 10px var(--danger);">$ 0</span>
+        </div>
+        <div class="stat-card">
             <span class="stat-lab">VEICOLI REGISTRATI</span>
             <span class="stat-val" id="total_vehicles">0</span>
         </div>
@@ -285,11 +289,22 @@
     }
 
     async function syncStats() {
+        // Saldo
         const conf = await db.collection("config").doc("finance").get();
         const balance = conf.exists ? conf.data().saldo : 0;
         document.getElementById('total_balance').innerText = "$ " + balance.toLocaleString();
+        
+        // Veicoli
         const vSnap = await db.collection("veicoli_lspd").get();
         document.getElementById('total_vehicles').innerText = vSnap.size;
+
+        // Uscite (Calcolo somma importi in finance_lspd)
+        const sSnap = await db.collection("finance_lspd").get();
+        let totalExpenses = 0;
+        sSnap.forEach(doc => {
+            totalExpenses += (doc.data().importo || 0);
+        });
+        document.getElementById('total_expenses').innerText = "$ " + totalExpenses.toLocaleString();
     }
 
     function getStatusBadge(stato) {
@@ -554,5 +569,4 @@
 </script>
 
 </body>
-
 </html>
