@@ -170,9 +170,22 @@
                     <div class="form-group">
                         <label>Grado (Paga base)</label>
                         <select id="s_grado" onchange="calcolaStipendio()">
-                            <option value="5000">Capo Polizia ($5.000)</option>
-                            <option value="4000">Tenente ($4.000)</option>
-                            <option value="2500">Agente Scelto ($2.500)</option>
+                            <option value="1000">Capo Polizia ($1.000)</option>
+                            <option value="1000">Assistente Capo ($1.000)</option>
+                            <option value="1000">Vice Capo ($1.000)</option>
+                            <option value="1000">Comandante ($1.000)</option>
+                            <option value="1000">Capitano II ($1.000)</option>
+                            <option value="1000">Capitano I ($1.000)</option>
+                            <option value="1000">Tenente II ($1.000)</option>
+                            <option value="1000">Tenente I ($1.000)</option>
+                            <option value="1000">Detective III ($1.000)</option>
+                            <option value="1000">Sergente II ($1.000)</option>
+                            <option value="1000">Detective II ($1.000)</option>
+                            <option value="1000">Sergente I ($1.000)</option>
+                            <option value="1000">Detective I ($1.000)</option>
+                            <option value="1000">Agente III ($1.000)</option>
+                            <option value="1000">Agente II ($1.000)</option>
+                            <option value="1000">Agente I ($1.000)</option>
                             <option value="1000">Recluta ($1.000)</option>
                         </select>
                     </div>
@@ -204,7 +217,7 @@
                 <button onclick="updateGlobalBalance()" style="width:100%; background:var(--police-blue); color:white; margin-top:10px;">AGGIORNA SALDO</button>
             </div>
             <div class="card" style="grid-column: span 2;">
-                <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">LOG TRANSAZIONI RECENTI</h3>
+                <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">PAGAMENTI RECENTI</h3>
                 <table>
                     <thead><tr><th>DATA</th><th>DESCRIZIONE</th><th>IMPORTO</th></tr></thead>
                     <tbody id="logsBody"></tbody>
@@ -541,4 +554,5 @@
 </script>
 
 </body>
+
 </html>
