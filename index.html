@@ -147,6 +147,7 @@
                     <div class="form-group"><label>Modello</label><input type="text" id="v_modello" required placeholder="Esempio: Vapid Interceptor"></div>
                     <div class="form-group"><label>Targa</label><input type="text" id="v_targa" required placeholder="LSPD-001"></div>
                     <div class="form-group"><label>Agente Responsabile</label><input type="text" id="v_agente"></div>
+                    <div class="form-group"><label>Note</label><input type="text" id="v_note" placeholder="Esempio: Graffio portiera destra"></div>
                     <div class="form-group">
                         <label>Stato Operativo</label>
                         <select id="v_stato">
@@ -381,60 +382,64 @@ async function syncStats() {
             targa: document.getElementById('v_targa').value,
             agente: document.getElementById('v_agente').value,
             stato: document.getElementById('v_stato').value,
+            note: document.getElementById('v_note').value || "",
             timestamp: new Date()
         });
         showNotify("VEICOLO REGISTRATO");
         e.target.reset(); refreshAll();
     });
 
-    async function caricaVeicoli() {
-        const snap = await db.collection("veicoli_lspd").orderBy("timestamp", "desc").get();
-        const tbody = document.getElementById('veicoliBody');
-        tbody.innerHTML = "";
-        snap.forEach(doc => {
-            const d = doc.data();
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="font-weight:bold;">${d.modello}</td>
-                <td style="color:var(--police-accent); font-family:'Orbitron'; font-size:0.7rem;">${d.targa}</td>
-                <td>${d.agente || 'NON ASSEGNATO'}</td>
-                <td>${getStatusBadge(d.stato)}</td>
-                <td><button onclick="editVeicolo('${doc.id}')">MODIFICA</button></td>`;
-            tbody.appendChild(tr);
-        });
-    }
-
-    async function editVeicolo(id) {
-        const doc = await db.collection("veicoli_lspd").doc(id).get();
+async function caricaVeicoli() {
+    const snap = await db.collection("veicoli_lspd").orderBy("timestamp", "desc").get();
+    const tbody = document.getElementById('veicoliBody');
+    tbody.innerHTML = "";
+    snap.forEach(doc => {
         const d = doc.data();
-        const html = `
-            <div class="form-group"><label>Modello</label><input type="text" id="edit_v_modello" value="${d.modello}"></div>
-            <div class="form-group"><label>Targa</label><input type="text" id="edit_v_targa" value="${d.targa}"></div>
-            <div class="form-group"><label>Agente</label><input type="text" id="edit_v_agente" value="${d.agente}"></div>
-            <div class="form-group"><label>Stato</label>
-                <select id="edit_v_stato">
-                    <option value="OPERATIVO" ${d.stato==='OPERATIVO'?'selected':''}>OPERATIVO</option>
-                    <option value="IN RIPARAZIONE" ${d.stato==='IN RIPARAZIONE'?'selected':''}>IN RIPARAZIONE</option>
-                    <option value="RIMOSSO" ${d.stato==='RIMOSSO'?'selected':''}>RIMOSSO</option>
-                    <option value="DISTRUTTO" ${d.stato==='DISTRUTTO'?'selected':''}>DISTRUTTO</option>
-                </select>
-            </div>`;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:bold;">${d.modello}</td>
+            <td style="color:var(--police-accent); font-family:'Orbitron'; font-size:0.7rem;">${d.targa}</td>
+            <td>${d.agente || 'NON ASSEGNATO'}</td>
+            <td style="font-style:italic; font-size:0.8rem; color:#ccc;">${d.note || '-'}</td>
+            <td>${getStatusBadge(d.stato)}</td>
+            <td><button onclick="editVeicolo('${doc.id}')">MODIFICA</button></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function editVeicolo(id) {
+    const doc = await db.collection("veicoli_lspd").doc(id).get();
+    const d = doc.data();
+    const html = `
+        <div class="form-group"><label>Modello</label><input type="text" id="edit_v_modello" value="${d.modello}"></div>
+        <div class="form-group"><label>Targa</label><input type="text" id="edit_v_targa" value="${d.targa}"></div>
+        <div class="form-group"><label>Agente</label><input type="text" id="edit_v_agente" value="${d.agente}"></div>
+        <div class="form-group"><label>Note</label><input type="text" id="edit_v_note" value="${d.note || ''}"></div>
+        <div class="form-group"><label>Stato</label>
+            <select id="edit_v_stato">
+                <option value="OPERATIVO" ${d.stato==='OPERATIVO'?'selected':''}>OPERATIVO</option>
+                <option value="IN RIPARAZIONE" ${d.stato==='IN RIPARAZIONE'?'selected':''}>IN RIPARAZIONE</option>
+                <option value="RIMOSSO" ${d.stato==='RIMOSSO'?'selected':''}>RIMOSSO</option>
+                <option value="DISTRUTTO" ${d.stato==='DISTRUTTO'?'selected':''}>DISTRUTTO</option>
+            </select>
+        </div>`;
         const actions = `<button class="btn-success" onclick="saveEditVeicolo('${id}')">SALVA</button>
                          <button class="btn-danger" onclick="confirmDelete('veicoli_lspd', '${id}')">ELIMINA</button>
                          <button onclick="closeModal()">ANNULLA</button>`;
         openModal("MODIFICA VEICOLO", html, actions);
     }
 
-    async function saveEditVeicolo(id) {
-        await db.collection("veicoli_lspd").doc(id).update({
-            modello: document.getElementById('edit_v_modello').value,
-            targa: document.getElementById('edit_v_targa').value,
-            agente: document.getElementById('edit_v_agente').value,
-            stato: document.getElementById('edit_v_stato').value
-        });
-        showNotify("DATI AGGIORNATI");
-        closeModal(); refreshAll();
-    }
+async function saveEditVeicolo(id) {
+    await db.collection("veicoli_lspd").doc(id).update({
+        modello: document.getElementById('edit_v_modello').value,
+        targa: document.getElementById('edit_v_targa').value,
+        agente: document.getElementById('edit_v_agente').value,
+        note: document.getElementById('edit_v_note').value, // Aggiornamento note
+        stato: document.getElementById('edit_v_stato').value
+    });
+    showNotify("DATI AGGIORNATI");
+    closeModal(); refreshAll();
+}
 
     // GESTIONE ARMI (NUOVE FUNZIONI)
     document.getElementById('armaForm').addEventListener('submit', async (e) => {
@@ -449,6 +454,18 @@ async function syncStats() {
         showNotify("ARMA REGISTRATA", "var(--info)");
         e.target.reset(); refreshAll();
     });
+
+    function getStatusBadge(stato) {
+    let classe = 'badge-operativo'; // Default
+    const s = stato ? stato.toUpperCase() : '';
+
+    if (s === 'IN RIPARAZIONE' || s === 'RESTITUITA') classe = 'badge-riparazione';
+    if (s === 'RIMOSSO' || s === 'PERSA') classe = 'badge-rimosso';
+    if (s === 'DISTRUTTO') classe = 'badge-distrutto';
+    if (s === 'POSSEDUTA' || s === 'OPERATIVO') classe = 'badge-operativo';
+    
+    return `<span class="badge ${classe}">${stato}</span>`;
+}
 
     async function caricaArmi() {
         const snap = await db.collection("armi_lspd").orderBy("timestamp", "desc").get();
@@ -782,3 +799,4 @@ async function deleteExec(coll, id) {
 
 </body>
 </html>
+
