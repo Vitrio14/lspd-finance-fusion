@@ -31,7 +31,7 @@
         .toast { background: var(--police-dark); border-left: 4px solid var(--police-blue); color: white; padding: 15px 25px; margin-bottom: 10px; font-family: 'Orbitron'; font-size: 0.7rem; box-shadow: 0 5px 15px rgba(0,0,0,0.5); animation: slideIn 0.3s ease-out; }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
 
-        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--police-blue); padding-bottom: 10px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid var(--police-blue); padding-bottom: 10px; flex-wrap: wrap; }
         .tab-btn { background: none; border: 1px solid var(--police-blue); color: white; padding: 10px 20px; cursor: pointer; font-family: 'Orbitron'; font-size: 0.7rem; transition: 0.3s; }
         .tab-btn.active { background: var(--police-blue); color: #000; font-weight: bold; }
 
@@ -41,9 +41,9 @@
         .stat-lab { font-size: 0.6rem; letter-spacing: 2px; color: #aaa; }
 
         .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; font-family: 'Orbitron'; }
-        .badge-operativo { background: rgba(0, 255, 136, 0.2); color: var(--success); border: 1px solid var(--success); }
-        .badge-riparazione { background: rgba(255, 170, 0, 0.2); color: var(--warning); border: 1px solid var(--warning); }
-        .badge-rimosso { background: rgba(255, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        .badge-operativo, .badge-posseduta { background: rgba(0, 255, 136, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .badge-riparazione, .badge-restituita { background: rgba(255, 170, 0, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+        .badge-rimosso, .badge-persa { background: rgba(255, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
         .badge-distrutto { background: #444; color: #eee; border: 1px solid #fff; }
 
         .search-box { background: rgba(0,0,0,0.5); border: 1px solid var(--police-blue); color: white; padding: 12px; width: 100%; box-sizing: border-box; font-family: 'Orbitron'; font-size: 0.75rem; margin-bottom: 15px; }
@@ -127,6 +127,7 @@
 
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('veicoli')">GESTIONE VEICOLI</button>
+        <button class="tab-btn" onclick="switchTab('armi')">GESTIONE ARMI</button>
         <button class="tab-btn" onclick="switchTab('stipendi')">GESTIONE STIPENDI</button>
         <button class="tab-btn" onclick="switchTab('gestione')" style="border-color:var(--police-accent)">GESTIONE FONDI</button>
     </div>
@@ -156,6 +157,35 @@
                 <table>
                     <thead><tr><th>MODELLO</th><th>TARGA</th><th>AGENTE RESP.</th><th>STATO</th><th>AZIONI</th></tr></thead>
                     <tbody id="veicoliBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-armi" class="tab-content hidden">
+        <div class="dashboard-grid">
+            <div class="card">
+                <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">[+] REGISTRAZIONE ARMA</h3>
+                <form id="armaForm">
+                    <div class="form-group"><label>Modello</label><input type="text" id="a_modello" required placeholder="Esempio: Glock 17"></div>
+                    <div class="form-group"><label>Matricola</label><input type="text" id="a_matricola" required placeholder="SN-XXXXXX"></div>
+                    <div class="form-group"><label>Agente Responsabile</label><input type="text" id="a_agente"></div>
+                    <div class="form-group">
+                        <label>Stato</label>
+                        <select id="a_stato">
+                            <option value="POSSEDUTA">POSSEDUTA</option>
+                            <option value="PERSA">PERSA</option>
+                            <option value="RESTITUITA">RESTITUITA</option>
+                        </select>
+                    </div>
+                    <button type="submit" style="width:100%">AGGIUNGI ASSEGNAZIONE ARMA</button>
+                </form>
+            </div>
+            <div class="card" style="grid-column: span 2;">
+                <input type="text" class="search-box" placeholder="FILTRA ARMI PER MATRICOLA O AGENTE..." onkeyup="filterTable('armiBody', this.value)">
+                <table>
+                    <thead><tr><th>MODELLO</th><th>MATRICOLA</th><th>AGENTE RESP.</th><th>STATO</th><th>AZIONI</th></tr></thead>
+                    <tbody id="armiBody"></tbody>
                 </table>
             </div>
         </div>
@@ -284,45 +314,35 @@
 
     async function refreshAll() {
         caricaVeicoli();
+        caricaArmi();
         caricaStipendi();
         syncStats();
     }
 
     async function syncStats() {
-        // Saldo
         const conf = await db.collection("config").doc("finance").get();
         const balance = conf.exists ? conf.data().saldo : 0;
         document.getElementById('total_balance').innerText = "$ " + balance.toLocaleString();
         
-        // Veicoli
         const vSnap = await db.collection("veicoli_lspd").get();
         document.getElementById('total_vehicles').innerText = vSnap.size;
 
-        // Uscite (Calcolo somma importi in finance_lspd)
         const sSnap = await db.collection("finance_lspd").get();
         let totalExpenses = 0;
-        sSnap.forEach(doc => {
-            totalExpenses += (doc.data().importo || 0);
-        });
+        sSnap.forEach(doc => { totalExpenses += (doc.data().importo || 0); });
         document.getElementById('total_expenses').innerText = "$ " + totalExpenses.toLocaleString();
     }
 
     function getStatusBadge(stato) {
         let cls = "badge-operativo";
-        if(stato === "IN RIPARAZIONE") cls = "badge-riparazione";
-        if(stato === "RIMOSSO") cls = "badge-rimosso";
+        if(stato === "IN RIPARAZIONE" || stato === "RESTITUITA") cls = "badge-riparazione";
+        if(stato === "RIMOSSO" || stato === "PERSA") cls = "badge-rimosso";
         if(stato === "DISTRUTTO") cls = "badge-distrutto";
+        if(stato === "POSSEDUTA") cls = "badge-posseduta";
         return `<span class="badge ${cls}">${stato}</span>`;
     }
 
-    async function updateGlobalBalance() {
-        const val = parseInt(document.getElementById('new_balance').value);
-        if(isNaN(val)) return;
-        await db.collection("config").doc("finance").set({ saldo: val });
-        showNotify("SALDO AGGIORNATO");
-        syncStats();
-    }
-
+    // GESTIONE VEICOLI
     document.getElementById('veicoloForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         await db.collection("veicoli_lspd").add({
@@ -333,8 +353,7 @@
             timestamp: new Date()
         });
         showNotify("VEICOLO REGISTRATO");
-        e.target.reset();
-        refreshAll();
+        e.target.reset(); refreshAll();
     });
 
     async function caricaVeicoli() {
@@ -386,6 +405,69 @@
         closeModal(); refreshAll();
     }
 
+    // GESTIONE ARMI (NUOVE FUNZIONI)
+    document.getElementById('armaForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await db.collection("armi_lspd").add({
+            modello: document.getElementById('a_modello').value,
+            matricola: document.getElementById('a_matricola').value,
+            agente: document.getElementById('a_agente').value,
+            stato: document.getElementById('a_stato').value,
+            timestamp: new Date()
+        });
+        showNotify("ARMA REGISTRATA", "var(--info)");
+        e.target.reset(); refreshAll();
+    });
+
+    async function caricaArmi() {
+        const snap = await db.collection("armi_lspd").orderBy("timestamp", "desc").get();
+        const tbody = document.getElementById('armiBody');
+        tbody.innerHTML = "";
+        snap.forEach(doc => {
+            const d = doc.data();
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="font-weight:bold;">${d.modello}</td>
+                <td style="color:var(--police-accent); font-family:'Orbitron'; font-size:0.7rem;">${d.matricola}</td>
+                <td>${d.agente || 'MAGAZZINO'}</td>
+                <td>${getStatusBadge(d.stato)}</td>
+                <td><button onclick="editArma('${doc.id}')">MODIFICA</button></td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function editArma(id) {
+        const doc = await db.collection("armi_lspd").doc(id).get();
+        const d = doc.data();
+        const html = `
+            <div class="form-group"><label>Modello</label><input type="text" id="edit_a_modello" value="${d.modello}"></div>
+            <div class="form-group"><label>Matricola</label><input type="text" id="edit_a_matricola" value="${d.matricola}"></div>
+            <div class="form-group"><label>Agente</label><input type="text" id="edit_a_agente" value="${d.agente}"></div>
+            <div class="form-group"><label>Stato</label>
+                <select id="edit_a_stato">
+                    <option value="POSSEDUTA" ${d.stato==='POSSEDUTA'?'selected':''}>POSSEDUTA</option>
+                    <option value="PERSA" ${d.stato==='PERSA'?'selected':''}>PERSA</option>
+                    <option value="RESTITUITA" ${d.stato==='RESTITUITA'?'selected':''}>RESTITUITA</option>
+                </select>
+            </div>`;
+        const actions = `<button class="btn-success" onclick="saveEditArma('${id}')">SALVA</button>
+                         <button class="btn-danger" onclick="confirmDelete('armi_lspd', '${id}')">ELIMINA</button>
+                         <button onclick="closeModal()">ANNULLA</button>`;
+        openModal("MODIFICA ARMA", html, actions);
+    }
+
+    async function saveEditArma(id) {
+        await db.collection("armi_lspd").doc(id).update({
+            modello: document.getElementById('edit_a_modello').value,
+            matricola: document.getElementById('edit_a_matricola').value,
+            agente: document.getElementById('edit_a_agente').value,
+            stato: document.getElementById('edit_a_stato').value
+        });
+        showNotify("ARMA AGGIORNATA");
+        closeModal(); refreshAll();
+    }
+
+    // GESTIONE STIPENDI
     document.getElementById('stipendioForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const amount = parseInt(document.getElementById('s_totale').innerText.replace('$','').replace(/\./g, '').replace(/,/g, ''));
@@ -408,8 +490,7 @@
         });
 
         showNotify("PAGAMENTO REGISTRATO", "var(--success)");
-        e.target.reset();
-        refreshAll();
+        e.target.reset(); refreshAll();
     });
 
     async function caricaStipendi() {
@@ -443,12 +524,10 @@
     async function editStipendio(id) {
         const doc = await db.collection("finance_lspd").doc(id).get();
         const d = doc.data();
-        
         let dataInizio = "", dataFine = "";
         if (d.periodo && d.periodo.includes(" / ")) {
             const parti = d.periodo.split(" / ");
-            dataInizio = parti[0];
-            dataFine = parti[1];
+            dataInizio = parti[0]; dataFine = parti[1];
         }
 
         const html = `
@@ -475,10 +554,9 @@
             </div>`;
 
         const actions = `
-            <button class="btn-success" onclick="saveEditStipendio('${id}')">SALVA E AGGIORNA SALDO</button>
+            <button class="btn-success" onclick="saveEditStipendio('${id}')">SALVA</button>
             <button class="btn-danger" onclick="confirmDelete('finance_lspd', '${id}')">ELIMINA</button>
             <button onclick="closeModal()">ANNULLA</button>`;
-        
         openModal("MODIFICA PAGAMENTO", html, actions);
     }
 
@@ -487,13 +565,11 @@
         const newAmt = parseInt(textAmt);
         const oldAmt = parseInt(document.getElementById('old_s_importo').value);
         const diff = oldAmt - newAmt; 
-
         const confRef = db.collection("config").doc("finance");
 
         await db.runTransaction(async (transaction) => {
             const confDoc = await transaction.get(confRef);
             const currentBalance = confDoc.data().saldo || 0;
-            
             transaction.update(confRef, { saldo: currentBalance + diff });
             transaction.update(db.collection("finance_lspd").doc(id), {
                 agente: document.getElementById('edit_s_agente').value,
@@ -503,10 +579,17 @@
                 ore: parseInt(document.getElementById('edit_s_ore').value)
             });
         });
+        showNotify("RECORD AGGIORNATO");
+        closeModal(); refreshAll();
+    }
 
-        showNotify("RECORD E SALDO AGGIORNATI");
-        closeModal(); 
-        refreshAll();
+    // UTILS & CORE
+    async function updateGlobalBalance() {
+        const val = parseInt(document.getElementById('new_balance').value);
+        if(isNaN(val)) return;
+        await db.collection("config").doc("finance").set({ saldo: val });
+        showNotify("SALDO AGGIORNATO");
+        syncStats();
     }
 
     function confirmDelete(coll, id) {
@@ -524,7 +607,7 @@
             await confRef.update({ saldo: (conf.data().saldo || 0) + amount });
         }
         await db.collection(coll).doc(id).delete();
-        showNotify("RECORD ELIMINATO E SALDO RICALCOLATO", "var(--warning)");
+        showNotify("RECORD ELIMINATO", "var(--warning)");
         closeModal(); refreshAll();
     }
 
@@ -538,9 +621,7 @@
     function filterTable(tbodyId, query) {
         const q = query.toLowerCase();
         const rows = document.getElementById(tbodyId).getElementsByTagName('tr');
-        for (let row of rows) {
-            row.style.display = row.innerText.toLowerCase().includes(q) ? "" : "none";
-        }
+        for (let row of rows) { row.style.display = row.innerText.toLowerCase().includes(q) ? "" : "none"; }
     }
 
     function calcolaStipendio() {
