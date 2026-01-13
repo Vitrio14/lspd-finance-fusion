@@ -129,6 +129,7 @@
         <button class="tab-btn active" onclick="switchTab('veicoli')">GESTIONE VEICOLI</button>
         <button class="tab-btn" onclick="switchTab('armi')">GESTIONE ARMI</button>
         <button class="tab-btn" onclick="switchTab('stipendi')">GESTIONE STIPENDI</button>
+        <button class="tab-btn" onclick="switchTab('uscite')">GESTIONE USCITE</button>
         <button class="tab-btn" onclick="switchTab('gestione')" style="border-color:var(--police-accent)">GESTIONE FONDI</button>
     </div>
 
@@ -239,6 +240,28 @@
             </div>
         </div>
     </div>
+
+    <div id="tab-uscite" class="tab-content hidden">
+    <div class="dashboard-grid">
+        <div class="card">
+            <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">[+] REGISTRA USCITA GENERICA</h3>
+            <form id="uscitaForm">
+                <div class="form-group"><label>Descrizione / Tipo Uscita</label><input type="text" id="u_tipo" required placeholder="Esempio: Rifornimento Munizioni"></div>
+                <div class="form-group"><label>Responsabile Acquisto</label><input type="text" id="u_responsabile" required placeholder="Nome Agente"></div>
+                <div class="form-group"><label>Data</label><input type="date" id="u_data" required></div>
+                <div class="form-group"><label>Importo Speso ($)</label><input type="number" id="u_importo" required placeholder="0"></div>
+                <button type="submit" style="width:100%; border-color:var(--danger); color:var(--danger);">REGISTRA USCITA</button>
+            </form>
+        </div>
+        <div class="card" style="grid-column: span 2;">
+            <input type="text" class="search-box" placeholder="CERCA USCITA (TIPO O RESPONSABILE)..." onkeyup="filterTable('usciteBody', this.value)">
+            <table>
+                <thead><tr><th>DATA</th><th>TIPO/DESCRIZIONE</th><th>RESPONSABILE</th><th>IMPORTO</th><th>AZIONI</th></tr></thead>
+                <tbody id="usciteBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
 
     <div id="tab-gestione" class="tab-content hidden">
         <div class="dashboard-grid">
@@ -582,6 +605,108 @@
         showNotify("RECORD AGGIORNATO");
         closeModal(); refreshAll();
     }
+
+    // Aggiungi questo ai richiami iniziali dentro refreshAll()
+async function refreshAll() {
+    caricaVeicoli();
+    caricaArmi();
+    caricaStipendi();
+    caricaUscite(); // Nuova funzione
+    syncStats();
+}
+
+// Event Listener per l'invio del modulo uscite
+document.getElementById('uscitaForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const amount = parseInt(document.getElementById('u_importo').value);
+    const confRef = db.collection("config").doc("finance");
+    
+    await db.runTransaction(async (transaction) => {
+        const confDoc = await transaction.get(confRef);
+        const currentBalance = confDoc.data().saldo || 0;
+        transaction.update(confRef, { saldo: currentBalance - amount });
+        
+        const newUscitaRef = db.collection("uscite_lspd").doc();
+        transaction.set(newUscitaRef, {
+            tipo: document.getElementById('u_tipo').value,
+            responsabile: document.getElementById('u_responsabile').value,
+            data: document.getElementById('u_data').value,
+            importo: amount,
+            timestamp: new Date()
+        });
+    });
+
+    showNotify("USCITA REGISTRATA", "var(--danger)");
+    e.target.reset(); refreshAll();
+});
+
+async function caricaUscite() {
+    const snap = await db.collection("uscite_lspd").orderBy("timestamp", "desc").get();
+    const tbody = document.getElementById('usciteBody');
+    tbody.innerHTML = "";
+    snap.forEach(doc => {
+        const d = doc.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${d.data}</td>
+            <td style="font-weight:bold;">${d.tipo}</td>
+            <td>${d.responsabile}</td>
+            <td style="color:var(--danger); font-weight:bold;">-$${d.importo.toLocaleString()}</td>
+            <td><button onclick="editUscita('${doc.id}')">MODIFICA</button></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+async function editUscita(id) {
+    const doc = await db.collection("uscite_lspd").doc(id).get();
+    const d = doc.data();
+    const html = `
+        <div class="form-group"><label>Tipo Uscita</label><input type="text" id="edit_u_tipo" value="${d.tipo}"></div>
+        <div class="form-group"><label>Responsabile</label><input type="text" id="edit_u_responsabile" value="${d.responsabile}"></div>
+        <div class="form-group"><label>Data</label><input type="date" id="edit_u_data" value="${d.data}"></div>
+        <div class="form-group"><label>Importo ($)</label><input type="number" id="edit_u_importo" value="${d.importo}"></div>
+        <input type="hidden" id="old_u_importo" value="${d.importo}">`;
+
+    const actions = `
+        <button class="btn-success" onclick="saveEditUscita('${id}')">SALVA</button>
+        <button class="btn-danger" onclick="confirmDelete('uscite_lspd', '${id}')">ELIMINA</button>
+        <button onclick="closeModal()">ANNULLA</button>`;
+    openModal("MODIFICA USCITA", html, actions);
+}
+
+async function saveEditUscita(id) {
+    const newAmt = parseInt(document.getElementById('edit_u_importo').value);
+    const oldAmt = parseInt(document.getElementById('old_u_importo').value);
+    const diff = oldAmt - newAmt; 
+    const confRef = db.collection("config").doc("finance");
+
+    await db.runTransaction(async (transaction) => {
+        const confDoc = await transaction.get(confRef);
+        const currentBalance = confDoc.data().saldo || 0;
+        transaction.update(confRef, { saldo: currentBalance + diff });
+        transaction.update(db.collection("uscite_lspd").doc(id), {
+            tipo: document.getElementById('edit_u_tipo').value,
+            responsabile: document.getElementById('edit_u_responsabile').value,
+            data: document.getElementById('edit_u_data').value,
+            importo: newAmt
+        });
+    });
+    showNotify("USCITA AGGIORNATA");
+    closeModal(); refreshAll();
+}
+
+async function deleteExec(coll, id) {
+    if (coll === 'finance_lspd' || coll === 'uscite_lspd') { // Aggiunto uscite_lspd
+        const doc = await db.collection(coll).doc(id).get();
+        const amount = doc.data().importo;
+        const confRef = db.collection("config").doc("finance");
+        const conf = await confRef.get();
+        await confRef.update({ saldo: (conf.data().saldo || 0) + amount });
+    }
+    await db.collection(coll).doc(id).delete();
+    showNotify("RECORD ELIMINATO", "var(--warning)");
+    closeModal(); refreshAll();
+}
 
     // UTILS & CORE
     async function updateGlobalBalance() {
