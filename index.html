@@ -134,7 +134,7 @@
     <div class="tabs">
         <button class="tab-btn active" onclick="switchTab('veicoli')">GESTIONE VEICOLI</button>
         <button class="tab-btn" onclick="switchTab('armi')">GESTIONE ARMI</button>
-        <button class="tab-btn" onclick="switchTab('stipendi')">GESTIONE STIPENDI</button>
+        <button class="tab-btn" onclick="switchTab('stipendi')">GESTIONE BONUS LAVORATIVI</button>
         <button class="tab-btn" onclick="switchTab('uscite')">GESTIONE USCITE</button>
         <button class="tab-btn" onclick="switchTab('gestione')" style="border-color:var(--police-accent)">GESTIONE FONDI</button>
     </div>
@@ -202,7 +202,7 @@
     <div id="tab-stipendi" class="tab-content hidden">
         <div class="dashboard-grid">
             <div class="card">
-                <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">[+] REGISTRA PAGAMENTO</h3>
+                <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">[+] REGISTRA PAGAMENTO BONUS</h3>
                 <form id="stipendioForm">
                     <div class="form-group"><label>Agente Ricevente</label><input type="text" id="s_agente" required></div>
                     <div class="form-row">
@@ -210,7 +210,7 @@
                         <div class="form-group"><label>Al</label><input type="date" id="s_al" required></div>
                     </div>
                     <div class="form-group">
-                        <label>Grado (Paga base)</label>
+                        <label>Grado (Bonus per ore lavorate)</label>
                         <select id="s_grado" onchange="calcolaStipendio()">
                             <option value="1000">Capo Polizia ($1.000)</option>
                             <option value="1000">Assistente Capo ($1.000)</option>
@@ -235,7 +235,7 @@
                     <div style="background:#000; padding:15px; text-align:center; border:1px solid var(--success); margin-bottom:15px;">
                         <div id="s_totale" style="font-family:'Orbitron'; font-size:1.5rem; color:var(--success);">$0</div>
                     </div>
-                    <button type="submit" style="width:100%; border-color:var(--success);">REGISTRA PAGAMENTO</button>
+                    <button type="submit" style="width:100%; border-color:var(--success);">REGISTRA PAGAMENTO BONUS</button>
                 </form>
             </div>
             <div class="card" style="grid-column: span 2;">
@@ -799,5 +799,6 @@ async function deleteExec(coll, id) {
 
 </body>
 </html>
+
 
 
