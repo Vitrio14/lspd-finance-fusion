@@ -116,6 +116,10 @@
             <span class="stat-val" id="total_balance">$ 0</span>
         </div>
         <div class="stat-card">
+        <span class="stat-lab">USCITE GENERALI</span>
+        <span class="stat-val" id="total_general_expenses" style="color: var(--warning);">$ 0</span>
+    </div>
+        <div class="stat-card">
             <span class="stat-lab">USCITE TOTALI (STIPENDI)</span>
             <span class="stat-val" id="total_expenses" style="color: var(--danger); text-shadow: 0 0 10px var(--danger);">$ 0</span>
         </div>
@@ -342,28 +346,28 @@
         syncStats();
     }
 
-    async function syncStats() {
-        const conf = await db.collection("config").doc("finance").get();
-        const balance = conf.exists ? conf.data().saldo : 0;
-        document.getElementById('total_balance').innerText = "$ " + balance.toLocaleString();
-        
-        const vSnap = await db.collection("veicoli_lspd").get();
-        document.getElementById('total_vehicles').innerText = vSnap.size;
+async function syncStats() {
+    // 1. Recupero Saldo Globale
+    const conf = await db.collection("config").doc("finance").get();
+    const balance = conf.exists ? conf.data().saldo : 0;
+    document.getElementById('total_balance').innerText = "$ " + balance.toLocaleString();
+    
+    // 2. Conteggio Veicoli
+    const vSnap = await db.collection("veicoli_lspd").get();
+    document.getElementById('total_vehicles').innerText = vSnap.size;
 
-        const sSnap = await db.collection("finance_lspd").get();
-        let totalExpenses = 0;
-        sSnap.forEach(doc => { totalExpenses += (doc.data().importo || 0); });
-        document.getElementById('total_expenses').innerText = "$ " + totalExpenses.toLocaleString();
-    }
+    // 3. Calcolo Uscite Stipendi (da finance_lspd)
+    const sSnap = await db.collection("finance_lspd").get();
+    let totalSalaries = 0;
+    sSnap.forEach(doc => { totalSalaries += (doc.data().importo || 0); });
+    document.getElementById('total_expenses').innerText = "$ " + totalSalaries.toLocaleString();
 
-    function getStatusBadge(stato) {
-        let cls = "badge-operativo";
-        if(stato === "IN RIPARAZIONE" || stato === "RESTITUITA") cls = "badge-riparazione";
-        if(stato === "RIMOSSO" || stato === "PERSA") cls = "badge-rimosso";
-        if(stato === "DISTRUTTO") cls = "badge-distrutto";
-        if(stato === "POSSEDUTA") cls = "badge-posseduta";
-        return `<span class="badge ${cls}">${stato}</span>`;
-    }
+    // 4. Calcolo Uscite Generali (da uscite_lspd)
+    const uSnap = await db.collection("uscite_lspd").get();
+    let totalGeneral = 0;
+    uSnap.forEach(doc => { totalGeneral += (doc.data().importo || 0); });
+    document.getElementById('total_general_expenses').innerText = "$ " + totalGeneral.toLocaleString();
+}
 
     // GESTIONE VEICOLI
     document.getElementById('veicoloForm').addEventListener('submit', async (e) => {
@@ -696,16 +700,27 @@ async function saveEditUscita(id) {
 }
 
 async function deleteExec(coll, id) {
-    if (coll === 'finance_lspd' || coll === 'uscite_lspd') { // Aggiunto uscite_lspd
+    // Se eliminiamo da stipendi O da uscite generali, dobbiamo rimborsare il saldo
+    if (coll === 'finance_lspd' || coll === 'uscite_lspd') { 
         const doc = await db.collection(coll).doc(id).get();
-        const amount = doc.data().importo;
-        const confRef = db.collection("config").doc("finance");
-        const conf = await confRef.get();
-        await confRef.update({ saldo: (conf.data().saldo || 0) + amount });
+        if (doc.exists) {
+            const amount = doc.data().importo || 0;
+            const confRef = db.collection("config").doc("finance");
+            
+            await db.runTransaction(async (transaction) => {
+                const confDoc = await transaction.get(confRef);
+                const currentBalance = confDoc.data().saldo || 0;
+                // Aggiungiamo di nuovo l'importo al saldo attuale
+                transaction.update(confRef, { saldo: currentBalance + amount });
+            });
+        }
     }
+    
+    // Procede con l'eliminazione effettiva del record
     await db.collection(coll).doc(id).delete();
-    showNotify("RECORD ELIMINATO", "var(--warning)");
-    closeModal(); refreshAll();
+    showNotify("RECORD ELIMINATO E SALDO AGGIORNATO", "var(--warning)");
+    closeModal(); 
+    refreshAll();
 }
 
     // UTILS & CORE
@@ -721,19 +736,6 @@ async function deleteExec(coll, id) {
         const actions = `<button class="btn-danger" onclick="deleteExec('${coll}', '${id}')">SI, ELIMINA</button>
                          <button onclick="closeModal()">ANNULLA</button>`;
         openModal("CONFERMA ELIMINAZIONE", "<p>L'eliminazione sarà definitiva. Continuare?</p>", actions);
-    }
-
-    async function deleteExec(coll, id) {
-        if (coll === 'finance_lspd') {
-            const doc = await db.collection(coll).doc(id).get();
-            const amount = doc.data().importo;
-            const confRef = db.collection("config").doc("finance");
-            const conf = await confRef.get();
-            await confRef.update({ saldo: (conf.data().saldo || 0) + amount });
-        }
-        await db.collection(coll).doc(id).delete();
-        showNotify("RECORD ELIMINATO", "var(--warning)");
-        closeModal(); refreshAll();
     }
 
     function switchTab(tab) {
