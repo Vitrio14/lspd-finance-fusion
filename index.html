@@ -131,13 +131,14 @@
         </div>
     </div>
 
-    <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('veicoli')">GESTIONE VEICOLI</button>
-        <button class="tab-btn" onclick="switchTab('armi')">GESTIONE ARMI</button>
-        <button class="tab-btn" onclick="switchTab('stipendi')">GESTIONE BONUS LAVORATIVI</button>
-        <button class="tab-btn" onclick="switchTab('uscite')">GESTIONE USCITE</button>
-        <button class="tab-btn" onclick="switchTab('gestione')" style="border-color:var(--police-accent)">GESTIONE FONDI</button>
-    </div>
+<div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('veicoli')">GESTIONE VEICOLI</button>
+    <button class="tab-btn" onclick="switchTab('armi')">GESTIONE ARMI</button>
+    <button class="tab-btn" onclick="switchTab('stipendi')">GESTIONE BONUS LAVORATIVI</button>
+    <button class="tab-btn" onclick="switchTab('uscite')">GESTIONE USCITE</button>
+    <button class="tab-btn" onclick="switchTab('partner')">GESTIONE PARTNER</button>
+    <button class="tab-btn" onclick="switchTab('gestione')" style="border-color:var(--police-accent)">GESTIONE FONDI</button>
+</div>
 
     <div id="tab-veicoli" class="tab-content">
         <div class="dashboard-grid">
@@ -270,6 +271,40 @@
     </div>
 </div>
 
+<div id="tab-partner" class="tab-content hidden">
+    <div class="dashboard-grid">
+        <div class="card">
+            <h3 style="font-family:'Orbitron'; font-size:0.75rem; color:var(--police-accent);">[+] REGISTRA PARTNERSHIP</h3>
+            <form id="partnerForm">
+                <div class="form-group"><label>Tipo di Partner (es. Azienda, Fornitore)</label><input type="text" id="p_tipo" required></div>
+                <div class="form-group"><label>Nome Azienda / Ente</label><input type="text" id="p_azienda" required></div>
+                <div class="form-row">
+                    <div class="form-group"><label>Data Inizio</label><input type="date" id="p_inizio" required></div>
+                    <div class="form-group"><label>Data Scadenza</label><input type="date" id="p_scadenza" required></div>
+                </div>
+                <div class="form-group"><label>Responsabile Stipulazione</label><input type="text" id="p_responsabile" required></div>
+                <div class="form-group"><label>Note Partnership</label><input type="text" id="p_note"></div>
+                <button type="submit" style="width:100%; border-color:var(--info); color:var(--info);">REGISTRA PARTNER</button>
+            </form>
+        </div>
+        <div class="card" style="grid-column: span 2;">
+            <input type="text" class="search-box" placeholder="CERCA PARTNER PER AZIENDA O RESPONSABILE..." onkeyup="filterTable('partnerBody', this.value)">
+            <table>
+                <thead>
+                    <tr>
+                        <th>AZIENDA</th>
+                        <th>TIPO</th>
+                        <th>VALIDITÀ</th>
+                        <th>RESPONSABILE</th>
+                        <th>AZIONI</th>
+                    </tr>
+                </thead>
+                <tbody id="partnerBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
     <div id="tab-gestione" class="tab-content hidden">
         <div class="dashboard-grid">
             <div class="card">
@@ -344,12 +379,84 @@
         }
     });
 
-    async function refreshAll() {
-        caricaVeicoli();
-        caricaArmi();
-        caricaStipendi();
-        syncStats();
-    }
+// Aggiungi caricaPartner() dentro la funzione refreshAll()
+async function refreshAll() {
+    caricaVeicoli();
+    caricaArmi();
+    caricaStipendi();
+    caricaUscite();
+    caricaPartner(); // <--- Aggiunta qui
+    syncStats();
+}
+
+// Event Listener per Invio Modulo Partner
+document.getElementById('partnerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await db.collection("partner_lspd").add({
+        tipo: document.getElementById('p_tipo').value,
+        azienda: document.getElementById('p_azienda').value,
+        inizio: document.getElementById('p_inizio').value,
+        scadenza: document.getElementById('p_scadenza').value,
+        responsabile: document.getElementById('p_responsabile').value,
+        note: document.getElementById('p_note').value || "",
+        timestamp: new Date()
+    });
+    showNotify("PARTNERSHIP REGISTRATA", "var(--info)");
+    e.target.reset(); refreshAll();
+});
+
+// Caricamento Dati in Tabella
+async function caricaPartner() {
+    const snap = await db.collection("partner_lspd").orderBy("timestamp", "desc").get();
+    const tbody = document.getElementById('partnerBody');
+    tbody.innerHTML = "";
+    snap.forEach(doc => {
+        const d = doc.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td style="font-weight:bold; color:var(--police-accent);">${d.azienda}</td>
+            <td>${d.tipo}</td>
+            <td style="font-size:0.8rem;">${d.inizio} / ${d.scadenza}</td>
+            <td>${d.responsabile}</td>
+            <td><button onclick="editPartner('${doc.id}')">MODIFICA</button></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+// Modifica Partner (Modal)
+async function editPartner(id) {
+    const doc = await db.collection("partner_lspd").doc(id).get();
+    const d = doc.data();
+    const html = `
+        <div class="form-group"><label>Azienda</label><input type="text" id="edit_p_azienda" value="${d.azienda}"></div>
+        <div class="form-group"><label>Tipo</label><input type="text" id="edit_p_tipo" value="${d.tipo}"></div>
+        <div class="form-row">
+            <div class="form-group"><label>Inizio</label><input type="date" id="edit_p_inizio" value="${d.inizio}"></div>
+            <div class="form-group"><label>Scadenza</label><input type="date" id="edit_p_scadenza" value="${d.scadenza}"></div>
+        </div>
+        <div class="form-group"><label>Responsabile</label><input type="text" id="edit_p_responsabile" value="${d.responsabile}"></div>
+        <div class="form-group"><label>Note</label><input type="text" id="edit_p_note" value="${d.note || ''}"></div>`;
+    
+    const actions = `
+        <button class="btn-success" onclick="saveEditPartner('${id}')">SALVA</button>
+        <button class="btn-danger" onclick="confirmDelete('partner_lspd', '${id}')">ELIMINA</button>
+        <button onclick="closeModal()">ANNULLA</button>`;
+    openModal("MODIFICA PARTNER", html, actions);
+}
+
+// Salvataggio Modifiche
+async function saveEditPartner(id) {
+    await db.collection("partner_lspd").doc(id).update({
+        azienda: document.getElementById('edit_p_azienda').value,
+        tipo: document.getElementById('edit_p_tipo').value,
+        inizio: document.getElementById('edit_p_inizio').value,
+        scadenza: document.getElementById('edit_p_scadenza').value,
+        responsabile: document.getElementById('edit_p_responsabile').value,
+        note: document.getElementById('edit_p_note').value
+    });
+    showNotify("PARTNER AGGIORNATO");
+    closeModal(); refreshAll();
+}
 
 async function syncStats() {
     // 1. Recupero Saldo Globale
@@ -637,6 +744,7 @@ async function refreshAll() {
     caricaArmi();
     caricaStipendi();
     caricaUscite(); // Nuova funzione
+    caricaPartner();
     syncStats();
 }
 
@@ -799,10 +907,3 @@ async function deleteExec(coll, id) {
 
 </body>
 </html>
-
-
-
-
-
-
-
